@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-line-video: hsl(var(--line-video));
+  --color-line-design: hsl(var(--line-design));
+  --color-line-music: hsl(var(--line-music));
+
+  --font-sans: var(--app-font-sans);
+  --font-mono-tabular: var(--app-font-mono);
+}
+
+:root {
+  /* warm paper white */
+  --background: 40 25% 97%;
+  --foreground: 0 0% 10%;
+  --border: 30 8% 86%;
+  --muted: 36 14% 92%;
+  --muted-foreground: 30 4% 48%;
+
+  /* Mini Metro transit-line palette */
+  --line-video: 4 72% 56%;     /* coral red */
+  --line-design: 215 65% 42%;  /* deep transit blue */
+  --line-music: 42 88% 52%;    /* mustard yellow */
+
+  --app-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --app-font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  html, body, #root {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  body {
+    font-family: var(--app-font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  .font-mono-tabular {
+    font-family: var(--app-font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
