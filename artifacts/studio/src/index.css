@@ -10,6 +10,11 @@
   --color-line-video: hsl(var(--line-video));
   --color-line-design: hsl(var(--line-design));
   --color-line-music: hsl(var(--line-music));
+  --color-line-green: hsl(var(--line-green));
+  --color-line-purple: hsl(var(--line-purple));
+  --color-line-orange: hsl(var(--line-orange));
+  --color-line-teal: hsl(var(--line-teal));
+  --color-line-pink: hsl(var(--line-pink));
 
   --font-sans: var(--app-font-sans);
   --font-mono-tabular: var(--app-font-mono);
@@ -27,6 +32,11 @@
   --line-video: 354 78% 53%;   /* signal red */
   --line-design: 220 75% 42%;  /* metro blue */
   --line-music: 46 95% 55%;    /* tokyo yellow */
+  --line-green: 145 55% 40%;   /* forest green */
+  --line-purple: 268 55% 52%;  /* royal purple */
+  --line-orange: 22 90% 55%;   /* sunset orange */
+  --line-teal: 184 65% 40%;    /* deep teal */
+  --line-pink: 330 70% 60%;    /* tokyo pink */
 
   --app-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --app-font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;

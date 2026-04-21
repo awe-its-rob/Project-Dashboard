@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Category = "video" | "design" | "music";
+type Category =
+  | "video"
+  | "design"
+  | "music"
+  | "green"
+  | "purple"
+  | "orange"
+  | "teal"
+  | "pink";
 
 const DEFAULT_MILESTONES = ["Brief/Concept", "Quote", "Draft 1", "Final", "Invoice", "Paid"];
 
@@ -39,11 +47,23 @@ const formatDueDate = (raw: string): string => {
   return `${String(d).padStart(2, "0")}.${String(m).padStart(2, "0")}`;
 };
 
-const CATEGORIES: { key: Category; label: string; dot: string; line: string }[] = [
-  { key: "video", label: "Video", dot: "bg-line-video", line: "bg-line-video" },
-  { key: "design", label: "Design", dot: "bg-line-design", line: "bg-line-design" },
-  { key: "music", label: "Music", dot: "bg-line-music", line: "bg-line-music" },
+const CATEGORIES: { key: Category; label: string; dot: string; line: string; cssVar: string }[] = [
+  { key: "video", label: "Red", dot: "bg-line-video", line: "bg-line-video", cssVar: "--line-video" },
+  { key: "design", label: "Blue", dot: "bg-line-design", line: "bg-line-design", cssVar: "--line-design" },
+  { key: "music", label: "Yellow", dot: "bg-line-music", line: "bg-line-music", cssVar: "--line-music" },
+  { key: "green", label: "Green", dot: "bg-line-green", line: "bg-line-green", cssVar: "--line-green" },
+  { key: "purple", label: "Purple", dot: "bg-line-purple", line: "bg-line-purple", cssVar: "--line-purple" },
+  { key: "orange", label: "Orange", dot: "bg-line-orange", line: "bg-line-orange", cssVar: "--line-orange" },
+  { key: "teal", label: "Teal", dot: "bg-line-teal", line: "bg-line-teal", cssVar: "--line-teal" },
+  { key: "pink", label: "Pink", dot: "bg-line-pink", line: "bg-line-pink", cssVar: "--line-pink" },
 ];
+
+const nextCategory = (existing: { category: Category }[]): Category => {
+  const used = new Set(existing.map((p) => p.category));
+  const free = CATEGORIES.find((c) => !used.has(c.key));
+  if (free) return free.key;
+  return CATEGORIES[existing.length % CATEGORIES.length].key;
+};
 
 const STORAGE_KEY = "studio.projects.v1";
 
@@ -85,7 +105,10 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
-    if (composing) inputRef.current?.focus();
+    if (composing) {
+      setDraftCategory(nextCategory(projects));
+      inputRef.current?.focus();
+    }
   }, [composing]);
 
   const addProject = () => {
@@ -656,7 +679,7 @@ const StationMarker = ({
             cy={c}
             r={innerSize / 2 + ringGap + ringWidth / 2}
             fill="none"
-            stroke="hsl(var(--line-video))"
+            stroke={`hsl(var(${fillClass.replace("bg-line-", "--line-")}))`}
             strokeWidth={ringWidth}
           />
         )}
