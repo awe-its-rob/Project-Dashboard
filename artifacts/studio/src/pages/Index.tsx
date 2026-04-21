@@ -495,12 +495,12 @@ const StationMarker = ({
   ariaLabel,
 }: StationMarkerProps) => {
   const size = 18;
-  const stroke = 2;
+  const stroke = checked ? 4 : 2;
   const c = size / 2;
 
   const renderShape = () => {
-    const fill = checked ? "currentColor" : "hsl(var(--background))";
-    const strokeColor = checked ? "currentColor" : "hsl(var(--foreground))";
+    const fill = "hsl(var(--background))";
+    const strokeColor = checked ? "hsl(var(--foreground))" : "hsl(var(--foreground))";
     const common = {
       fill,
       stroke: strokeColor,
@@ -567,7 +567,7 @@ const StationMarker = ({
       <span
         className={cn(
           "inline-flex items-center justify-center rounded-full transition-all",
-          checked ? "ring-2 ring-offset-2 ring-offset-background ring-[hsl(var(--line-video))]" : "",
+          checked ? "ring-[5px] ring-offset-[3px] ring-offset-background ring-[hsl(var(--line-video))]" : "",
         )}
       >
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
