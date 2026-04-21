@@ -760,21 +760,40 @@ const ProgressTrack = ({
                     className="absolute left-1/2 right-0 top-1/2 -translate-y-1/2 h-4 w-full cursor-copy flex items-center"
                     title="Double-click to insert milestone"
                   >
-                    {progress >= i + 2 ? (
-                      <div
-                        className={cn("h-[5px] w-full rounded-full", lineColor)}
-                      />
-                    ) : (
-                      <div
-                        className="h-[5px] w-full rounded-full opacity-90"
-                        style={{
-                          backgroundImage:
-                            "linear-gradient(to right, hsl(var(--border)) 55%, transparent 55%)",
-                          backgroundSize: "10px 5px",
-                          backgroundRepeat: "repeat-x",
-                        }}
-                      />
-                    )}
+                    {(() => {
+                      if (progress >= i + 2) {
+                        return (
+                          <div className={cn("h-[5px] w-full rounded-full", lineColor)} />
+                        );
+                      }
+                      let frac = 0;
+                      if (progress === i + 1) {
+                        const nextTasks = tasks[i + 1] ?? [];
+                        const named = nextTasks.filter((t) => t.label.trim() !== "");
+                        if (named.length > 0) {
+                          frac = named.filter((t) => t.done).length / named.length;
+                        }
+                      }
+                      return (
+                        <div className="relative h-[5px] w-full rounded-full overflow-hidden">
+                          <div
+                            className="absolute inset-0 opacity-90"
+                            style={{
+                              backgroundImage:
+                                "linear-gradient(to right, hsl(var(--border)) 55%, transparent 55%)",
+                              backgroundSize: "10px 5px",
+                              backgroundRepeat: "repeat-x",
+                            }}
+                          />
+                          {frac > 0 && (
+                            <div
+                              className={cn("absolute inset-y-0 left-0 rounded-full", lineColor)}
+                              style={{ width: `${frac * 100}%` }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
                 <StationMarker
