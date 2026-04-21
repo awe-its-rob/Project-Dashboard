@@ -133,7 +133,13 @@ const Index = () => {
         let progress = p.progress;
         if (index < p.progress) progress = p.progress - 1;
         progress = Math.min(progress, milestones.length);
-        return { ...p, milestones, dueDates, progress };
+        const tasks: Record<number, Task[]> = {};
+        Object.entries(p.tasks ?? {}).forEach(([k, v]) => {
+          const i = Number(k);
+          if (i === index) return;
+          tasks[i > index ? i - 1 : i] = v;
+        });
+        return { ...p, milestones, dueDates, progress, tasks };
       }),
     );
   };
@@ -148,7 +154,12 @@ const Index = () => {
         milestones.splice(insertAt, 0, "New");
         dueDates.splice(insertAt, 0, "");
         const progress = p.progress > afterIndex + 1 ? p.progress + 1 : p.progress;
-        return { ...p, milestones, dueDates, progress };
+        const tasks: Record<number, Task[]> = {};
+        Object.entries(p.tasks ?? {}).forEach(([k, v]) => {
+          const i = Number(k);
+          tasks[i >= insertAt ? i + 1 : i] = v;
+        });
+        return { ...p, milestones, dueDates, progress, tasks };
       }),
     );
   };
