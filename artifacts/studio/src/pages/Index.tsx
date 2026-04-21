@@ -772,44 +772,55 @@ const ProgressTrack = ({
   };
 
   return (
-    <div className="px-2 pb-8 pt-4">
-      <ol className="relative grid" style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}>
+    <div className="px-2 pb-8 pt-4 relative">
+      <ol
+        className="relative grid items-center"
+        style={{
+          gridTemplateColumns: `repeat(${count}, 1fr)`,
+          gridTemplateRows: "auto auto auto",
+          rowGap: "0.5rem",
+        }}
+      >
         {milestones.map((label, i) => {
           const checked = i < progress;
-          const due = dueDates[i] ?? "";
           const isEditingLabel = editingLabel === i;
-          const isEditingDate = editingDate === i;
           const isOpen = openTaskPanel === i;
-          const milestoneTasks: Task[] = tasks[i] ?? [];
           return (
-            <li key={i} className="flex flex-col items-center gap-2 min-w-0 px-1 relative">
-              {/* Label above — single click opens tasks, double click renames */}
-              {isEditingLabel ? (
-                <InlineEdit
-                  initial={label}
-                  centered
-                  onCommit={(val) => {
-                    onRenameMilestone(i, val);
-                    setEditingLabel(null);
-                  }}
-                  onCancel={() => setEditingLabel(null)}
-                  className="text-[10px] tracking-wider uppercase font-mono-tabular w-full"
-                />
-              ) : (
-                <span
-                  onDoubleClick={() => setEditingLabel(i)}
-                  className={cn(
-                    "text-[10px] tracking-wider uppercase text-center font-mono-tabular leading-tight cursor-text select-none min-h-[1.5em]",
-                    checked ? "text-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  {label}
-                </span>
-              )}
+            <li key={i} style={{ display: "contents" }}>
+              {/* Row 1: label (aligned to bottom so all markers stay on a single line) */}
+              <div
+                className="px-1 min-w-0 flex items-end justify-center"
+                style={{ gridColumn: i + 1, gridRow: 1 }}
+              >
+                {isEditingLabel ? (
+                  <InlineEdit
+                    initial={label}
+                    centered
+                    onCommit={(val) => {
+                      onRenameMilestone(i, val);
+                      setEditingLabel(null);
+                    }}
+                    onCancel={() => setEditingLabel(null)}
+                    className="text-[10px] tracking-wider uppercase font-mono-tabular w-full"
+                  />
+                ) : (
+                  <span
+                    onDoubleClick={() => setEditingLabel(i)}
+                    className={cn(
+                      "text-[10px] tracking-wider uppercase text-center font-mono-tabular leading-tight cursor-text select-none",
+                      checked ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {label}
+                  </span>
+                )}
+              </div>
 
-              {/* Station marker row with connecting line */}
-              <div className="relative w-full flex items-center justify-center h-6">
-                {/* Line to next milestone — double-click to insert */}
+              {/* Row 2: station marker + connecting line */}
+              <div
+                className="relative w-full flex items-center justify-center h-6 px-1"
+                style={{ gridColumn: i + 1, gridRow: 2 }}
+              >
                 {i < count - 1 && (
                   <div
                     onDoubleClick={(e) => {
@@ -844,7 +855,10 @@ const ProgressTrack = ({
                           />
                           {frac > 0 && (
                             <div
-                              className={cn("absolute inset-y-0 left-0 rounded-full", lineColor)}
+                              className={cn(
+                                "absolute inset-y-0 left-0 rounded-full",
+                                lineColor,
+                              )}
                               style={{ width: `${frac * 100}%` }}
                             />
                           )}
@@ -866,41 +880,42 @@ const ProgressTrack = ({
                 />
               </div>
 
-              {/* Next actions toggle below */}
-              <button
-                onClick={() => handleLabelClick(i)}
-                className={cn(
-                  "text-[10px] tracking-wider uppercase font-mono-tabular text-center cursor-pointer select-none min-h-[1.2em] transition-colors",
-                  isOpen
-                    ? "text-foreground underline underline-offset-2"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                aria-expanded={isOpen}
+              {/* Row 3: next actions toggle */}
+              <div
+                className="px-1 flex justify-center"
+                style={{ gridColumn: i + 1, gridRow: 3 }}
               >
-                next actions
-              </button>
-
-              {/* Task panel — absolutely positioned below this milestone column */}
-              {isOpen && (
-                <div className="absolute top-full left-0 z-20 mt-2 w-[320px] max-w-[90vw]">
-                  <TaskPanel
-                    tasks={milestoneTasks}
-                    onChange={(updated) => onUpdateTasks(i, updated)}
-                  />
-                </div>
-              )}
+                <button
+                  onClick={() => handleLabelClick(i)}
+                  className={cn(
+                    "text-[10px] tracking-wider uppercase font-mono-tabular text-center cursor-pointer select-none min-h-[1.2em] transition-colors",
+                    isOpen
+                      ? "text-foreground underline underline-offset-2"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  aria-expanded={isOpen}
+                >
+                  next actions
+                </button>
+              </div>
             </li>
           );
         })}
       </ol>
 
-      {/* Reserve vertical space when a task panel is open so it doesn't overlap content below */}
+      {/* Task panel — flows below the grid, anchored under the active column */}
       {openTaskPanel !== null && (
-        <div
-          style={{
-            minHeight: `${((tasks[openTaskPanel] ?? []).length + 1) * 28 + 24}px`,
-          }}
-        />
+        <div className="mt-3 grid" style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}>
+          <div
+            className="w-[320px] max-w-[90vw]"
+            style={{ gridColumn: openTaskPanel + 1 }}
+          >
+            <TaskPanel
+              tasks={tasks[openTaskPanel] ?? []}
+              onChange={(updated) => onUpdateTasks(openTaskPanel, updated)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
