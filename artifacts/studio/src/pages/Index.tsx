@@ -573,7 +573,12 @@ const TaskPanel = ({ tasks, onChange }: TaskPanelProps) => {
     onChange(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
 
   const renameTask = (id: string, label: string) => {
-    onChange(tasks.map((t) => (t.id === id ? { ...t, label: label.trim() } : t)));
+    const trimmed = label.trim();
+    if (!trimmed) {
+      onChange(tasks.filter((t) => t.id !== id));
+    } else {
+      onChange(tasks.map((t) => (t.id === id ? { ...t, label: trimmed } : t)));
+    }
     setEditingId(null);
   };
 
