@@ -332,7 +332,102 @@ const Index = () => {
           </button>
         </div>
       </section>
+
+      <AllTasksList projects={projects} onUpdateTasks={updateTasks} />
     </main>
+  );
+};
+
+type AllTasksListProps = {
+  projects: Project[];
+  onUpdateTasks: (projectId: string, milestoneIndex: number, tasks: Task[]) => void;
+};
+
+const AllTasksList = ({ projects, onUpdateTasks }: AllTasksListProps) => {
+  const rows = projects.flatMap((p) => {
+    const cat = CATEGORIES.find((c) => c.key === p.category)!;
+    return Object.entries(p.tasks ?? {}).flatMap(([msIdxStr, tasks]) => {
+      const msIdx = Number(msIdxStr);
+      const milestoneLabel = p.milestones[msIdx] ?? "";
+      return (tasks ?? [])
+        .filter((t) => t.label.trim() !== "")
+        .map((t) => ({
+          projectId: p.id,
+          projectTitle: p.title,
+          dot: cat.dot,
+          milestoneIndex: msIdx,
+          milestoneLabel,
+          allTasksAtMilestone: tasks,
+          task: t,
+        }));
+    });
+  });
+
+  if (rows.length === 0) return null;
+
+  const toggle = (
+    projectId: string,
+    milestoneIndex: number,
+    allTasks: Task[],
+    taskId: string,
+  ) => {
+    onUpdateTasks(
+      projectId,
+      milestoneIndex,
+      allTasks.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t)),
+    );
+  };
+
+  return (
+    <section
+      aria-label="All tasks"
+      className="w-full max-w-3xl flex flex-col mt-16 pt-8 border-t border-border"
+    >
+      <h2 className="text-[10px] tracking-[0.3em] uppercase font-mono-tabular text-muted-foreground text-center mb-6">
+        All Tasks
+      </h2>
+      <ul className="flex flex-col gap-1">
+        {rows.map((r) => (
+          <li
+            key={`${r.projectId}-${r.milestoneIndex}-${r.task.id}`}
+            className="group flex items-center gap-3 py-1"
+          >
+            <button
+              onClick={() =>
+                toggle(r.projectId, r.milestoneIndex, r.allTasksAtMilestone, r.task.id)
+              }
+              className={cn(
+                "h-3.5 w-3.5 rounded-sm border shrink-0 transition-colors",
+                r.task.done
+                  ? "bg-foreground border-foreground"
+                  : "bg-background border-border hover:border-foreground",
+              )}
+              aria-label={r.task.done ? "Mark incomplete" : "Mark complete"}
+            />
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full shrink-0",
+                r.dot,
+              )}
+            />
+            <span
+              className={cn(
+                "flex-1 text-[10px] tracking-wider uppercase font-mono-tabular leading-tight truncate",
+                r.task.done ? "line-through text-muted-foreground" : "text-foreground",
+              )}
+            >
+              {r.task.label}
+            </span>
+            <span className="text-[10px] tracking-wider uppercase font-mono-tabular text-muted-foreground truncate max-w-[40%] text-right">
+              {r.projectTitle}
+              {r.milestoneLabel && (
+                <span className="opacity-60"> · {r.milestoneLabel}</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 };
 
