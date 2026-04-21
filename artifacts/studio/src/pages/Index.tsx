@@ -207,7 +207,7 @@ const Index = () => {
         </h1>
       </header>
 
-      <section aria-label="Projects" className="w-full max-w-md flex flex-col">
+      <section aria-label="Projects" className="w-full max-w-3xl flex flex-col">
         {projects.length === 0 && !composing && (
           <p className="text-center text-sm text-muted-foreground mb-8 font-light">
             No projects yet.
@@ -594,9 +594,6 @@ const ProgressTrack = ({
     if (openTaskPanel === i) {
       setOpenTaskPanel(null);
       return;
-    }
-    if (!tasks[i] || tasks[i].length === 0) {
-      onUpdateTasks(i, [{ id: crypto.randomUUID(), label: "", done: false }]);
     }
     setOpenTaskPanel(i);
   };
