@@ -564,9 +564,16 @@ const StationMarker = ({
       )}
       style={{ background: "transparent", padding: 0, lineHeight: 0 }}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {renderShape()}
-      </svg>
+      <span
+        className={cn(
+          "inline-flex items-center justify-center rounded-full transition-all",
+          checked ? "ring-2 ring-offset-2 ring-offset-background ring-[hsl(var(--line-video))]" : "",
+        )}
+      >
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
+          {renderShape()}
+        </svg>
+      </span>
     </button>
   );
 };
@@ -670,7 +677,7 @@ const ProgressTrack = ({
                   </div>
                 )}
                 <StationMarker
-                  shape={STATION_SHAPES[i % STATION_SHAPES.length]}
+                  shape="circle"
                   checked={checked}
                   fillClass={lineColor}
                   onClick={() => onToggle(i)}
