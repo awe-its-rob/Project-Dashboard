@@ -76,7 +76,7 @@ const Index = () => {
       const parsed = JSON.parse(raw) as Project[];
       return parsed.map((p) => {
         const milestones =
-          Array.isArray(p.milestones) && p.milestones.length === DEFAULT_MILESTONES.length
+          Array.isArray(p.milestones) && p.milestones.length > 0
             ? p.milestones
             : [...DEFAULT_MILESTONES];
         const dueDates =
