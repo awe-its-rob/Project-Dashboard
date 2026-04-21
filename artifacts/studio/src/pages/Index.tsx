@@ -581,6 +581,7 @@ const ProgressTrack = ({
   onSetDueDate,
   onDeleteMilestone,
   onInsertMilestone,
+  tasks,
   onUpdateTasks,
 }: ProgressTrackProps) => {
   const count = milestones.length;
