@@ -706,7 +706,7 @@ const ProgressTrack = ({
 
               {/* Task panel — absolutely positioned below this milestone column */}
               {isOpen && (
-                <div className="absolute top-full left-0 right-0 z-20 mt-2">
+                <div className="absolute top-full left-0 z-20 mt-2 w-[320px] max-w-[90vw]">
                   <TaskPanel
                     tasks={milestoneTasks}
                     onChange={(updated) => onUpdateTasks(i, updated)}
