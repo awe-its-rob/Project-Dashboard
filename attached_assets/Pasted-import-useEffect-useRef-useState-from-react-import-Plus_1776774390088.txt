@@ -17,16 +17,12 @@ type Project = {
   title: string;
   category: Category;
   createdAt: number;
-  /** number of completed milestones from the left, 0..milestones.length */
   progress: number;
   milestones: string[];
-  /** due date per milestone, "" if unset, format "DD.MM" */
   dueDates: string[];
-  /** tasks per milestone index */
   tasks: Record<number, Task[]>;
 };
 
-/** Normalize "10.1" / "10/1" / "10 1" → "10.01". Returns "" if invalid. */
 const formatDueDate = (raw: string): string => {
   const trimmed = raw.trim();
   if (!trimmed) return "";
@@ -69,6 +65,7 @@ const Index = () => {
       return [];
     }
   });
+
   const [composing, setComposing] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftCategory, setDraftCategory] = useState<Category>("video");
@@ -90,10 +87,7 @@ const Index = () => {
 
   const addProject = () => {
     const title = draftTitle.trim();
-    if (!title) {
-      setComposing(false);
-      return;
-    }
+    if (!title) { setComposing(false); return; }
     setProjects((p) => [
       ...p,
       {
@@ -123,36 +117,6 @@ const Index = () => {
     setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, title: trimmed } : p)));
   };
 
-  const deleteMilestone = (projectId: string, index: number) => {
-    setProjects((prev) =>
-      prev.map((p) => {
-        if (p.id !== projectId) return p;
-        if (p.milestones.length <= 1) return p;
-        const milestones = p.milestones.filter((_, i) => i !== index);
-        const dueDates = p.dueDates.filter((_, i) => i !== index);
-        let progress = p.progress;
-        if (index < p.progress) progress = p.progress - 1;
-        progress = Math.min(progress, milestones.length);
-        return { ...p, milestones, dueDates, progress };
-      }),
-    );
-  };
-
-  const insertMilestone = (projectId: string, afterIndex: number) => {
-    setProjects((prev) =>
-      prev.map((p) => {
-        if (p.id !== projectId) return p;
-        const insertAt = afterIndex + 1;
-        const milestones = [...p.milestones];
-        const dueDates = [...p.dueDates];
-        milestones.splice(insertAt, 0, "New");
-        dueDates.splice(insertAt, 0, "");
-        const progress = p.progress > afterIndex + 1 ? p.progress + 1 : p.progress;
-        return { ...p, milestones, dueDates, progress };
-      }),
-    );
-  };
-
   const renameMilestone = (projectId: string, index: number, label: string) => {
     const trimmed = label.trim();
     if (!trimmed) return;
@@ -162,15 +126,6 @@ const Index = () => {
         const next = [...p.milestones];
         next[index] = trimmed;
         return { ...p, milestones: next };
-      }),
-    );
-  };
-
-  const updateTasks = (projectId: string, milestoneIndex: number, tasks: Task[]) => {
-    setProjects((prev) =>
-      prev.map((p) => {
-        if (p.id !== projectId) return p;
-        return { ...p, tasks: { ...p.tasks, [milestoneIndex]: tasks } };
       }),
     );
   };
@@ -191,10 +146,17 @@ const Index = () => {
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id !== projectId) return p;
-        // If already checked → uncheck this one and all to its right
         if (index < p.progress) return { ...p, progress: index };
-        // Otherwise → check this one and auto-check everything to its left
         return { ...p, progress: index + 1 };
+      }),
+    );
+  };
+
+  const updateTasks = (projectId: string, milestoneIndex: number, tasks: Task[]) => {
+    setProjects((prev) =>
+      prev.map((p) => {
+        if (p.id !== projectId) return p;
+        return { ...p, tasks: { ...p.tasks, [milestoneIndex]: tasks } };
       }),
     );
   };
@@ -220,7 +182,7 @@ const Index = () => {
             const isExpanded = expandedId === p.id;
             const isEditing = editingProjectId === p.id;
             return (
-              <li key={p.id}>
+              <li key={p.id} className="border-b border-border/60">
                 <div
                   className={cn(
                     "group relative flex items-center gap-4 py-4 px-2 -mx-2 rounded-sm cursor-pointer",
@@ -234,30 +196,19 @@ const Index = () => {
                   role="button"
                   aria-expanded={isExpanded}
                 >
-                  <span
-                    className={cn("h-2.5 w-2.5 rounded-full shrink-0", cat.dot)}
-                    aria-label={cat.label}
-                  />
+                  <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", cat.dot)} aria-label={cat.label} />
                   {isEditing ? (
                     <InlineEdit
                       initial={p.title}
-                      onCommit={(val) => {
-                        renameProject(p.id, val);
-                        setEditingProjectId(null);
-                      }}
+                      onCommit={(val) => { renameProject(p.id, val); setEditingProjectId(null); }}
                       onCancel={() => setEditingProjectId(null)}
                       className="flex-1 text-foreground font-normal"
                     />
                   ) : (
-                    <span className="flex-1 text-left text-foreground font-normal truncate">
-                      {p.title}
-                    </span>
+                    <span className="flex-1 text-left text-foreground font-normal truncate">{p.title}</span>
                   )}
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeProject(p.id);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); removeProject(p.id); }}
                     className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
                     aria-label={`Delete ${p.title}`}
                   >
@@ -275,8 +226,6 @@ const Index = () => {
                     onToggle={(i) => toggleMilestone(p.id, i)}
                     onRenameMilestone={(i, label) => renameMilestone(p.id, i, label)}
                     onSetDueDate={(i, raw) => setDueDate(p.id, i, raw)}
-                    onDeleteMilestone={(i) => deleteMilestone(p.id, i)}
-                    onInsertMilestone={(i) => insertMilestone(p.id, i)}
                     onUpdateTasks={(i, tasks) => updateTasks(p.id, i, tasks)}
                   />
                 )}
@@ -285,7 +234,7 @@ const Index = () => {
           })}
 
           {composing && (
-            <li className="flex items-center gap-4 py-4">
+            <li className="flex items-center gap-4 py-4 border-b border-border/60">
               <button
                 onClick={() => {
                   const idx = CATEGORIES.findIndex((c) => c.key === draftCategory);
@@ -304,10 +253,7 @@ const Index = () => {
                 onChange={(e) => setDraftTitle(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") addProject();
-                  if (e.key === "Escape") {
-                    setDraftTitle("");
-                    setComposing(false);
-                  }
+                  if (e.key === "Escape") { setDraftTitle(""); setComposing(false); }
                 }}
                 onBlur={addProject}
                 placeholder="New project"
@@ -336,6 +282,8 @@ const Index = () => {
   );
 };
 
+// ─── InlineEdit ────────────────────────────────────────────────────────────────
+
 type InlineEditProps = {
   initial: string;
   onCommit: (val: string) => void;
@@ -347,10 +295,7 @@ type InlineEditProps = {
 const InlineEdit = ({ initial, onCommit, onCancel, className, centered }: InlineEditProps) => {
   const [value, setValue] = useState(initial);
   const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
+  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
   return (
     <input
       ref={ref}
@@ -370,19 +315,7 @@ const InlineEdit = ({ initial, onCommit, onCancel, className, centered }: Inline
   );
 };
 
-type ProgressTrackProps = {
-  milestones: string[];
-  dueDates: string[];
-  progress: number;
-  lineColor: string;
-  tasks: Record<number, Task[]>;
-  onToggle: (index: number) => void;
-  onRenameMilestone: (index: number, label: string) => void;
-  onSetDueDate: (index: number, raw: string) => void;
-  onDeleteMilestone: (index: number) => void;
-  onInsertMilestone: (afterIndex: number) => void;
-  onUpdateTasks: (index: number, tasks: Task[]) => void;
-};
+// ─── TaskPanel ─────────────────────────────────────────────────────────────────
 
 type TaskPanelProps = {
   tasks: Task[];
@@ -392,15 +325,19 @@ type TaskPanelProps = {
 const TaskPanel = ({ tasks, onChange }: TaskPanelProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const toggleTask = (id: string) =>
+  const toggleTask = (id: string) => {
     onChange(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  };
 
   const renameTask = (id: string, label: string) => {
-    onChange(tasks.map((t) => (t.id === id ? { ...t, label: label.trim() } : t)));
+    const trimmed = label.trim();
+    onChange(tasks.map((t) => (t.id === id ? { ...t, label: trimmed } : t)));
     setEditingId(null);
   };
 
-  const removeTask = (id: string) => onChange(tasks.filter((t) => t.id !== id));
+  const removeTask = (id: string) => {
+    onChange(tasks.filter((t) => t.id !== id));
+  };
 
   const addTask = () => {
     const newTask: Task = { id: crypto.randomUUID(), label: "", done: false };
@@ -426,15 +363,12 @@ const TaskPanel = ({ tasks, onChange }: TaskPanelProps) => {
             <InlineEdit
               initial={task.label}
               onCommit={(val) => renameTask(task.id, val)}
-              onCancel={() => {
-                if (!task.label) removeTask(task.id);
-                else setEditingId(null);
-              }}
+              onCancel={() => { if (!task.label) removeTask(task.id); else setEditingId(null); }}
               className="flex-1 text-xs text-foreground"
             />
           ) : (
             <span
-              onClick={() => setEditingId(task.id)}
+              onDoubleClick={() => setEditingId(task.id)}
               className={cn(
                 "flex-1 text-xs cursor-text select-none",
                 task.done ? "line-through text-muted-foreground" : "text-foreground",
@@ -466,109 +400,18 @@ const TaskPanel = ({ tasks, onChange }: TaskPanelProps) => {
   );
 };
 
-type StationShape = "circle" | "square" | "triangle" | "pentagon" | "diamond" | "ring";
+// ─── ProgressTrack ─────────────────────────────────────────────────────────────
 
-const STATION_SHAPES: StationShape[] = [
-  "circle",
-  "square",
-  "triangle",
-  "pentagon",
-  "diamond",
-  "ring",
-];
-
-type StationMarkerProps = {
-  shape: StationShape;
-  checked: boolean;
-  fillClass: string;
-  onClick: () => void;
-  onDoubleClick: (e: React.MouseEvent) => void;
-  ariaLabel: string;
-};
-
-const StationMarker = ({
-  shape,
-  checked,
-  fillClass,
-  onClick,
-  onDoubleClick,
-  ariaLabel,
-}: StationMarkerProps) => {
-  const size = 18;
-  const stroke = 2;
-  const c = size / 2;
-
-  const renderShape = () => {
-    const fill = checked ? "currentColor" : "hsl(var(--background))";
-    const strokeColor = checked ? "currentColor" : "hsl(var(--foreground))";
-    const common = {
-      fill,
-      stroke: strokeColor,
-      strokeWidth: stroke,
-      strokeLinejoin: "round" as const,
-    };
-    switch (shape) {
-      case "circle":
-        return <circle cx={c} cy={c} r={c - stroke / 2} {...common} />;
-      case "square": {
-        const s = size - stroke;
-        return <rect x={stroke / 2} y={stroke / 2} width={s} height={s} rx={1} {...common} />;
-      }
-      case "triangle": {
-        const r = c - stroke / 2;
-        const pts = [0, 1, 2]
-          .map((i) => {
-            const a = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
-            return `${c + r * Math.cos(a)},${c + r * Math.sin(a)}`;
-          })
-          .join(" ");
-        return <polygon points={pts} {...common} />;
-      }
-      case "pentagon": {
-        const r = c - stroke / 2;
-        const pts = [0, 1, 2, 3, 4]
-          .map((i) => {
-            const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-            return `${c + r * Math.cos(a)},${c + r * Math.sin(a)}`;
-          })
-          .join(" ");
-        return <polygon points={pts} {...common} />;
-      }
-      case "diamond": {
-        const r = c - stroke / 2;
-        const pts = `${c},${c - r} ${c + r},${c} ${c},${c + r} ${c - r},${c}`;
-        return <polygon points={pts} {...common} />;
-      }
-      case "ring":
-        return (
-          <>
-            <circle cx={c} cy={c} r={c - stroke / 2} {...common} />
-            {checked && (
-              <circle cx={c} cy={c} r={(c - stroke / 2) / 2.4} fill="hsl(var(--background))" />
-            )}
-          </>
-        );
-    }
-  };
-
-  return (
-    <button
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      aria-pressed={checked}
-      aria-label={ariaLabel}
-      title="Click to toggle, double-click to delete"
-      className={cn(
-        "relative z-10 transition-colors",
-        checked ? fillClass.replace("bg-", "text-") : "text-foreground/70 hover:text-foreground",
-      )}
-      style={{ background: "transparent", padding: 0, lineHeight: 0 }}
-    >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {renderShape()}
-      </svg>
-    </button>
-  );
+type ProgressTrackProps = {
+  milestones: string[];
+  dueDates: string[];
+  progress: number;
+  lineColor: string;
+  tasks: Record<number, Task[]>;
+  onToggle: (index: number) => void;
+  onRenameMilestone: (index: number, label: string) => void;
+  onSetDueDate: (index: number, raw: string) => void;
+  onUpdateTasks: (index: number, tasks: Task[]) => void;
 };
 
 const ProgressTrack = ({
@@ -576,11 +419,10 @@ const ProgressTrack = ({
   dueDates,
   progress,
   lineColor,
+  tasks,
   onToggle,
   onRenameMilestone,
   onSetDueDate,
-  onDeleteMilestone,
-  onInsertMilestone,
   onUpdateTasks,
 }: ProgressTrackProps) => {
   const count = milestones.length;
@@ -588,16 +430,17 @@ const ProgressTrack = ({
   const [editingDate, setEditingDate] = useState<number | null>(null);
   const [openTaskPanel, setOpenTaskPanel] = useState<number | null>(null);
 
-  const handleLabelClick = (i: number) => {
+  const handleMilestoneClick = (i: number) => {
     if (editingLabel === i) return;
     if (openTaskPanel === i) {
       setOpenTaskPanel(null);
-      return;
+    } else {
+      // seed with one blank task if none yet
+      if (!tasks[i] || tasks[i].length === 0) {
+        onUpdateTasks(i, [{ id: crypto.randomUUID(), label: "", done: false }]);
+      }
+      setOpenTaskPanel(i);
     }
-    if (!tasks[i] || tasks[i].length === 0) {
-      onUpdateTasks(i, [{ id: crypto.randomUUID(), label: "", done: false }]);
-    }
-    setOpenTaskPanel(i);
   };
 
   return (
@@ -610,28 +453,22 @@ const ProgressTrack = ({
           const isEditingDate = editingDate === i;
           const isOpen = openTaskPanel === i;
           const milestoneTasks: Task[] = tasks[i] ?? [];
+
           return (
             <li key={i} className="flex flex-col items-center gap-2 min-w-0 px-1 relative">
-              {/* Label above — single click opens tasks, double click renames */}
+              {/* Label above — double-click to rename, single-click to open tasks */}
               {isEditingLabel ? (
                 <InlineEdit
                   initial={label}
                   centered
-                  onCommit={(val) => {
-                    onRenameMilestone(i, val);
-                    setEditingLabel(null);
-                  }}
+                  onCommit={(val) => { onRenameMilestone(i, val); setEditingLabel(null); }}
                   onCancel={() => setEditingLabel(null)}
                   className="text-[10px] tracking-wider uppercase font-mono-tabular w-full"
                 />
               ) : (
                 <span
-                  onClick={() => handleLabelClick(i)}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setEditingLabel(i);
-                    setOpenTaskPanel(null);
-                  }}
+                  onClick={() => handleMilestoneClick(i)}
+                  onDoubleClick={(e) => { e.stopPropagation(); setEditingLabel(i); setOpenTaskPanel(null); }}
                   className={cn(
                     "text-[10px] tracking-wider uppercase text-center font-mono-tabular leading-tight cursor-pointer select-none min-h-[1.5em]",
                     checked ? "text-foreground" : "text-muted-foreground",
@@ -642,45 +479,34 @@ const ProgressTrack = ({
                 </span>
               )}
 
-              {/* Station marker row with connecting line */}
-              <div className="relative w-full flex items-center justify-center h-6">
-                {/* Line to next milestone — double-click to insert */}
+              {/* Circle row with connecting line */}
+              <div className="relative w-full flex items-center justify-center h-3.5">
                 {i < count - 1 && (
-                  <div
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      onInsertMilestone(i);
-                    }}
-                    className="absolute left-1/2 right-0 top-1/2 -translate-y-1/2 h-4 w-full cursor-copy flex items-center"
-                    title="Double-click to insert milestone"
-                  >
+                  <div className="absolute left-1/2 right-0 top-1/2 -translate-y-1/2 h-px w-[calc(100%)] pointer-events-none">
                     {progress >= i + 2 ? (
-                      <div
-                        className={cn("h-[5px] w-full rounded-full", lineColor)}
-                      />
+                      <div className={cn("absolute inset-0", lineColor)} />
                     ) : (
                       <div
-                        className="h-[5px] w-full rounded-full opacity-90"
+                        className="absolute inset-0"
                         style={{
-                          backgroundImage:
-                            "linear-gradient(to right, hsl(var(--border)) 55%, transparent 55%)",
-                          backgroundSize: "10px 5px",
+                          backgroundImage: "linear-gradient(to right, hsl(var(--border)) 50%, transparent 50%)",
+                          backgroundSize: "6px 1px",
                           backgroundRepeat: "repeat-x",
                         }}
                       />
                     )}
                   </div>
                 )}
-                <StationMarker
-                  shape={STATION_SHAPES[i % STATION_SHAPES.length]}
-                  checked={checked}
-                  fillClass={lineColor}
+                <button
                   onClick={() => onToggle(i)}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteMilestone(i);
-                  }}
-                  ariaLabel={`${label}${checked ? " (completed)" : ""}`}
+                  aria-pressed={checked}
+                  aria-label={`${label}${checked ? " (completed)" : ""}`}
+                  className={cn(
+                    "relative z-10 h-3.5 w-3.5 rounded-full border transition-colors",
+                    checked
+                      ? cn(lineColor, "border-transparent")
+                      : "bg-background border-border hover:border-foreground",
+                  )}
                 />
               </div>
 
@@ -689,10 +515,7 @@ const ProgressTrack = ({
                 <InlineEdit
                   initial={due}
                   centered
-                  onCommit={(val) => {
-                    onSetDueDate(i, val);
-                    setEditingDate(null);
-                  }}
+                  onCommit={(val) => { onSetDueDate(i, val); setEditingDate(null); }}
                   onCancel={() => setEditingDate(null)}
                   className="text-[10px] tracking-wider font-mono-tabular w-full"
                 />
@@ -720,13 +543,9 @@ const ProgressTrack = ({
         })}
       </ol>
 
-      {/* Reserve vertical space when a task panel is open so it doesn't overlap content below */}
+      {/* Reserve space when a task panel is open */}
       {openTaskPanel !== null && (
-        <div
-          style={{
-            minHeight: `${((tasks[openTaskPanel] ?? []).length + 1) * 28 + 24}px`,
-          }}
-        />
+        <div style={{ minHeight: `${((tasks[openTaskPanel] ?? []).length + 1) * 28 + 24}px` }} />
       )}
     </div>
   );
