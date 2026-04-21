@@ -202,7 +202,7 @@ const Index = () => {
             const isExpanded = expandedId === p.id;
             const isEditing = editingProjectId === p.id;
             return (
-              <li key={p.id} className="border-b border-border/60">
+              <li key={p.id}>
                 <div
                   className={cn(
                     "group relative flex items-center gap-4 py-4 px-2 -mx-2 rounded-sm cursor-pointer",
@@ -265,7 +265,7 @@ const Index = () => {
           })}
 
           {composing && (
-            <li className="flex items-center gap-4 py-4 border-b border-border/60">
+            <li className="flex items-center gap-4 py-4">
               <button
                 onClick={() => {
                   const idx = CATEGORIES.findIndex((c) => c.key === draftCategory);
@@ -362,6 +362,111 @@ type ProgressTrackProps = {
   onInsertMilestone: (afterIndex: number) => void;
 };
 
+type StationShape = "circle" | "square" | "triangle" | "pentagon" | "diamond" | "ring";
+
+const STATION_SHAPES: StationShape[] = [
+  "circle",
+  "square",
+  "triangle",
+  "pentagon",
+  "diamond",
+  "ring",
+];
+
+type StationMarkerProps = {
+  shape: StationShape;
+  checked: boolean;
+  fillClass: string;
+  onClick: () => void;
+  onDoubleClick: (e: React.MouseEvent) => void;
+  ariaLabel: string;
+};
+
+const StationMarker = ({
+  shape,
+  checked,
+  fillClass,
+  onClick,
+  onDoubleClick,
+  ariaLabel,
+}: StationMarkerProps) => {
+  const size = 18;
+  const stroke = 2;
+  const c = size / 2;
+
+  const renderShape = () => {
+    const fill = checked ? "currentColor" : "hsl(var(--background))";
+    const strokeColor = checked ? "currentColor" : "hsl(var(--foreground))";
+    const common = {
+      fill,
+      stroke: strokeColor,
+      strokeWidth: stroke,
+      strokeLinejoin: "round" as const,
+    };
+    switch (shape) {
+      case "circle":
+        return <circle cx={c} cy={c} r={c - stroke / 2} {...common} />;
+      case "square": {
+        const s = size - stroke;
+        return <rect x={stroke / 2} y={stroke / 2} width={s} height={s} rx={1} {...common} />;
+      }
+      case "triangle": {
+        const r = c - stroke / 2;
+        const pts = [0, 1, 2]
+          .map((i) => {
+            const a = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
+            return `${c + r * Math.cos(a)},${c + r * Math.sin(a)}`;
+          })
+          .join(" ");
+        return <polygon points={pts} {...common} />;
+      }
+      case "pentagon": {
+        const r = c - stroke / 2;
+        const pts = [0, 1, 2, 3, 4]
+          .map((i) => {
+            const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+            return `${c + r * Math.cos(a)},${c + r * Math.sin(a)}`;
+          })
+          .join(" ");
+        return <polygon points={pts} {...common} />;
+      }
+      case "diamond": {
+        const r = c - stroke / 2;
+        const pts = `${c},${c - r} ${c + r},${c} ${c},${c + r} ${c - r},${c}`;
+        return <polygon points={pts} {...common} />;
+      }
+      case "ring":
+        return (
+          <>
+            <circle cx={c} cy={c} r={c - stroke / 2} {...common} />
+            {checked && (
+              <circle cx={c} cy={c} r={(c - stroke / 2) / 2.4} fill="hsl(var(--background))" />
+            )}
+          </>
+        );
+    }
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      aria-pressed={checked}
+      aria-label={ariaLabel}
+      title="Click to toggle, double-click to delete"
+      className={cn(
+        "relative z-10 transition-colors",
+        checked ? fillClass.replace("bg-", "text-") : "text-foreground/70 hover:text-foreground",
+      )}
+      style={{ background: "transparent", padding: 0, lineHeight: 0 }}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {renderShape()}
+      </svg>
+    </button>
+  );
+};
+
 const ProgressTrack = ({
   milestones,
   dueDates,
@@ -411,8 +516,8 @@ const ProgressTrack = ({
                 </span>
               )}
 
-              {/* Circle row with connecting line */}
-              <div className="relative w-full flex items-center justify-center h-3.5">
+              {/* Station marker row with connecting line */}
+              <div className="relative w-full flex items-center justify-center h-6">
                 {/* Line to next milestone — double-click to insert */}
                 {i < count - 1 && (
                   <div
@@ -420,39 +525,36 @@ const ProgressTrack = ({
                       e.stopPropagation();
                       onInsertMilestone(i);
                     }}
-                    className="absolute left-1/2 right-0 top-1/2 -translate-y-1/2 h-3 w-full cursor-copy flex items-center"
+                    className="absolute left-1/2 right-0 top-1/2 -translate-y-1/2 h-4 w-full cursor-copy flex items-center"
                     title="Double-click to insert milestone"
                   >
                     {progress >= i + 2 ? (
-                      <div className={cn("h-px w-full", lineColor)} />
+                      <div
+                        className={cn("h-[5px] w-full rounded-full", lineColor)}
+                      />
                     ) : (
                       <div
-                        className="h-px w-full"
+                        className="h-[5px] w-full rounded-full opacity-90"
                         style={{
                           backgroundImage:
-                            "linear-gradient(to right, hsl(var(--border)) 50%, transparent 50%)",
-                          backgroundSize: "6px 1px",
+                            "linear-gradient(to right, hsl(var(--border)) 55%, transparent 55%)",
+                          backgroundSize: "10px 5px",
                           backgroundRepeat: "repeat-x",
                         }}
                       />
                     )}
                   </div>
                 )}
-                <button
+                <StationMarker
+                  shape={STATION_SHAPES[i % STATION_SHAPES.length]}
+                  checked={checked}
+                  fillClass={lineColor}
                   onClick={() => onToggle(i)}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
                     onDeleteMilestone(i);
                   }}
-                  aria-pressed={checked}
-                  aria-label={`${label}${checked ? " (completed)" : ""}`}
-                  title="Click to toggle, double-click to delete"
-                  className={cn(
-                    "relative z-10 h-3.5 w-3.5 rounded-full border transition-colors",
-                    checked
-                      ? cn(lineColor, "border-transparent")
-                      : "bg-background border-border hover:border-foreground",
-                  )}
+                  ariaLabel={`${label}${checked ? " (completed)" : ""}`}
                 />
               </div>
 
