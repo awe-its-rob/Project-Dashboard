@@ -430,15 +430,15 @@ const TaskPanel = ({ tasks, onChange }: TaskPanelProps) => {
                 if (!task.label) removeTask(task.id);
                 else setEditingId(null);
               }}
-              className="flex-1 text-xs text-foreground"
+              className="flex-1 text-[10px] tracking-wider uppercase font-mono-tabular leading-tight text-foreground"
             />
           ) : (
             <span
               onClick={() => setEditingId(task.id)}
               className={cn(
-                "flex-1 text-xs cursor-text select-none",
+                "flex-1 text-[10px] tracking-wider uppercase font-mono-tabular leading-tight cursor-text select-none",
                 task.done ? "line-through text-muted-foreground" : "text-foreground",
-                !task.label && "text-muted-foreground italic",
+                !task.label && "text-muted-foreground normal-case",
               )}
             >
               {task.label || "unnamed task"}
