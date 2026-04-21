@@ -753,7 +753,9 @@ const ProgressTrack = ({
   const count = milestones.length;
   const [editingLabel, setEditingLabel] = useState<number | null>(null);
   const [editingDate, setEditingDate] = useState<number | null>(null);
-  const [openTaskPanel, setOpenTaskPanel] = useState<number | null>(null);
+  const [openTaskPanel, setOpenTaskPanel] = useState<number | null>(
+    progress > 0 ? progress - 1 : 0,
+  );
 
   const handleLabelClick = (i: number) => {
     if (editingLabel === i) return;
