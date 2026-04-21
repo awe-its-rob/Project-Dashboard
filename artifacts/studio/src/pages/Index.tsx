@@ -654,21 +654,16 @@ const StationMarker = ({
       aria-label={ariaLabel}
       title="Click to toggle, double-click to delete"
       className={cn(
-        "relative z-10 transition-colors",
+        "relative z-10 inline-flex items-center justify-center rounded-full border-0 transition-all",
         checked ? fillClass.replace("bg-", "text-") : "text-foreground/70 hover:text-foreground",
+        checked &&
+          "ring-[5px] ring-offset-[3px] ring-offset-background ring-[hsl(var(--line-video))]",
       )}
-      style={{ background: "transparent", padding: 0, lineHeight: 0 }}
+      style={{ background: "transparent", padding: 0, lineHeight: 0, width: size, height: size }}
     >
-      <span
-        className={cn(
-          "inline-flex items-center justify-center rounded-full transition-all",
-          checked ? "ring-[5px] ring-offset-[3px] ring-offset-background ring-[hsl(var(--line-video))]" : "",
-        )}
-      >
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
-          {renderShape()}
-        </svg>
-      </span>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
+        {renderShape()}
+      </svg>
     </button>
   );
 };
