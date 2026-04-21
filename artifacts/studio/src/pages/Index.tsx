@@ -732,16 +732,10 @@ const ProgressTrack = ({
                 />
               ) : (
                 <span
-                  onClick={() => handleLabelClick(i)}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setEditingLabel(i);
-                    setOpenTaskPanel(null);
-                  }}
+                  onDoubleClick={() => setEditingLabel(i)}
                   className={cn(
-                    "text-[10px] tracking-wider uppercase text-center font-mono-tabular leading-tight cursor-pointer select-none min-h-[1.5em]",
+                    "text-[10px] tracking-wider uppercase text-center font-mono-tabular leading-tight cursor-text select-none min-h-[1.5em]",
                     checked ? "text-foreground" : "text-muted-foreground",
-                    isOpen && "underline underline-offset-2",
                   )}
                 >
                   {label}
@@ -767,12 +761,10 @@ const ProgressTrack = ({
                         );
                       }
                       let frac = 0;
-                      if (progress === i + 1) {
-                        const nextTasks = tasks[i + 1] ?? [];
-                        const named = nextTasks.filter((t) => t.label.trim() !== "");
-                        if (named.length > 0) {
-                          frac = named.filter((t) => t.done).length / named.length;
-                        }
+                      const currentTasks = tasks[i] ?? [];
+                      const named = currentTasks.filter((t) => t.label.trim() !== "");
+                      if (named.length > 0) {
+                        frac = named.filter((t) => t.done).length / named.length;
                       }
                       return (
                         <div className="relative h-[5px] w-full rounded-full overflow-hidden">
@@ -809,27 +801,19 @@ const ProgressTrack = ({
                 />
               </div>
 
-              {/* Due date below */}
-              {isEditingDate ? (
-                <InlineEdit
-                  initial={due}
-                  centered
-                  onCommit={(val) => {
-                    onSetDueDate(i, val);
-                    setEditingDate(null);
-                  }}
-                  onCancel={() => setEditingDate(null)}
-                  className="text-[10px] tracking-wider font-mono-tabular w-full"
-                />
-              ) : (
-                <span
-                  onDoubleClick={() => setEditingDate(i)}
-                  className="text-[10px] tracking-wider font-mono-tabular text-center text-muted-foreground cursor-text select-none min-h-[1.2em]"
-                  title="Double-click to edit due date (DD.MM)"
-                >
-                  {due || "—"}
-                </span>
-              )}
+              {/* Next actions toggle below */}
+              <button
+                onClick={() => handleLabelClick(i)}
+                className={cn(
+                  "text-[10px] tracking-wider uppercase font-mono-tabular text-center cursor-pointer select-none min-h-[1.2em] transition-colors",
+                  isOpen
+                    ? "text-foreground underline underline-offset-2"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                aria-expanded={isOpen}
+              >
+                next actions
+              </button>
 
               {/* Task panel — absolutely positioned below this milestone column */}
               {isOpen && (
