@@ -600,9 +600,12 @@ const StationMarker = ({
   onDoubleClick,
   ariaLabel,
 }: StationMarkerProps) => {
-  const size = 18;
+  const innerSize = 18;
+  const ringWidth = 5;
+  const ringGap = 3;
+  const totalSize = checked ? innerSize + (ringWidth + ringGap) * 2 : innerSize;
   const stroke = checked ? 4 : 2;
-  const c = size / 2;
+  const c = totalSize / 2;
 
   const renderShape = () => {
     const fill = "hsl(var(--background))";
@@ -613,47 +616,11 @@ const StationMarker = ({
       strokeWidth: stroke,
       strokeLinejoin: "round" as const,
     };
+    const innerR = innerSize / 2 - stroke / 2;
     switch (shape) {
       case "circle":
-        return <circle cx={c} cy={c} r={c - stroke / 2} {...common} />;
-      case "square": {
-        const s = size - stroke;
-        return <rect x={stroke / 2} y={stroke / 2} width={s} height={s} rx={1} {...common} />;
-      }
-      case "triangle": {
-        const r = c - stroke / 2;
-        const pts = [0, 1, 2]
-          .map((i) => {
-            const a = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
-            return `${c + r * Math.cos(a)},${c + r * Math.sin(a)}`;
-          })
-          .join(" ");
-        return <polygon points={pts} {...common} />;
-      }
-      case "pentagon": {
-        const r = c - stroke / 2;
-        const pts = [0, 1, 2, 3, 4]
-          .map((i) => {
-            const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-            return `${c + r * Math.cos(a)},${c + r * Math.sin(a)}`;
-          })
-          .join(" ");
-        return <polygon points={pts} {...common} />;
-      }
-      case "diamond": {
-        const r = c - stroke / 2;
-        const pts = `${c},${c - r} ${c + r},${c} ${c},${c + r} ${c - r},${c}`;
-        return <polygon points={pts} {...common} />;
-      }
-      case "ring":
-        return (
-          <>
-            <circle cx={c} cy={c} r={c - stroke / 2} {...common} />
-            {checked && (
-              <circle cx={c} cy={c} r={(c - stroke / 2) / 2.4} fill="hsl(var(--background))" />
-            )}
-          </>
-        );
+      default:
+        return <circle cx={c} cy={c} r={innerR} {...common} />;
     }
   };
 
@@ -665,14 +632,34 @@ const StationMarker = ({
       aria-label={ariaLabel}
       title="Click to toggle, double-click to delete"
       className={cn(
-        "relative z-10 inline-flex items-center justify-center rounded-full border-0 transition-all",
+        "relative z-10 inline-flex items-center justify-center border-0 transition-colors",
         checked ? fillClass.replace("bg-", "text-") : "text-foreground/70 hover:text-foreground",
-        checked &&
-          "ring-[5px] ring-offset-[3px] ring-offset-background ring-[hsl(var(--line-video))]",
       )}
-      style={{ background: "transparent", padding: 0, lineHeight: 0, width: size, height: size }}
+      style={{
+        background: "transparent",
+        padding: 0,
+        lineHeight: 0,
+        width: totalSize,
+        height: totalSize,
+      }}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
+      <svg
+        width={totalSize}
+        height={totalSize}
+        viewBox={`0 0 ${totalSize} ${totalSize}`}
+        className="block"
+        shapeRendering="geometricPrecision"
+      >
+        {checked && (
+          <circle
+            cx={c}
+            cy={c}
+            r={innerSize / 2 + ringGap + ringWidth / 2}
+            fill="none"
+            stroke="hsl(var(--line-video))"
+            strokeWidth={ringWidth}
+          />
+        )}
         {renderShape()}
       </svg>
     </button>
