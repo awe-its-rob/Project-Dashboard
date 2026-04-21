@@ -68,7 +68,7 @@ const nextCategory = (existing: { category: Category }[]): Category => {
 const STORAGE_KEY = "studio.projects.v1";
 
 const Index = () => {
-  const [projects, setProjects] = useState<Project[]>(() => {
+  const [projects, _setProjectsRaw] = useState<Project[]>(() => {
     if (typeof window === "undefined") return [];
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -100,6 +100,54 @@ const Index = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
   }, [projects]);
 
+  const pastRef = useRef<Project[][]>([]);
+  const futureRef = useRef<Project[][]>([]);
+  const HISTORY_LIMIT = 100;
+
+  const mutate = (updater: (prev: Project[]) => Project[]) => {
+    _setProjectsRaw((prev) => {
+      const next = updater(prev);
+      if (next === prev) return prev;
+      pastRef.current.push(prev);
+      if (pastRef.current.length > HISTORY_LIMIT) pastRef.current.shift();
+      futureRef.current = [];
+      return next;
+    });
+  };
+
+  const undo = () => {
+    _setProjectsRaw((current) => {
+      const prev = pastRef.current.pop();
+      if (!prev) return current;
+      futureRef.current.push(current);
+      return prev;
+    });
+  };
+
+  const redo = () => {
+    _setProjectsRaw((current) => {
+      const next = futureRef.current.pop();
+      if (!next) return current;
+      pastRef.current.push(current);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod || e.key.toLowerCase() !== "z") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   useEffect(() => {
     document.title = "Studio — Projects";
   }, []);
@@ -117,7 +165,7 @@ const Index = () => {
       setComposing(false);
       return;
     }
-    setProjects((p) => [
+    mutate((p) => [
       ...p,
       {
         id: crypto.randomUUID(),
@@ -136,18 +184,18 @@ const Index = () => {
   };
 
   const removeProject = (id: string) => {
-    setProjects((p) => p.filter((x) => x.id !== id));
+    mutate((p) => p.filter((x) => x.id !== id));
     if (expandedId === id) setExpandedId(null);
   };
 
   const renameProject = (id: string, title: string) => {
     const trimmed = title.trim();
     if (!trimmed) return;
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, title: trimmed } : p)));
+    mutate((prev) => prev.map((p) => (p.id === id ? { ...p, title: trimmed } : p)));
   };
 
   const deleteMilestone = (projectId: string, index: number) => {
-    setProjects((prev) =>
+    mutate((prev) =>
       prev.map((p) => {
         if (p.id !== projectId) return p;
         if (p.milestones.length <= 1) return p;
@@ -168,7 +216,7 @@ const Index = () => {
   };
 
   const insertMilestone = (projectId: string, afterIndex: number) => {
-    setProjects((prev) =>
+    mutate((prev) =>
       prev.map((p) => {
         if (p.id !== projectId) return p;
         const insertAt = afterIndex + 1;
@@ -190,7 +238,7 @@ const Index = () => {
   const renameMilestone = (projectId: string, index: number, label: string) => {
     const trimmed = label.trim();
     if (!trimmed) return;
-    setProjects((prev) =>
+    mutate((prev) =>
       prev.map((p) => {
         if (p.id !== projectId) return p;
         const next = [...p.milestones];
@@ -201,7 +249,7 @@ const Index = () => {
   };
 
   const updateTasks = (projectId: string, milestoneIndex: number, tasks: Task[]) => {
-    setProjects((prev) =>
+    mutate((prev) =>
       prev.map((p) => {
         if (p.id !== projectId) return p;
         return { ...p, tasks: { ...p.tasks, [milestoneIndex]: tasks } };
@@ -211,7 +259,7 @@ const Index = () => {
 
   const setDueDate = (projectId: string, index: number, raw: string) => {
     const formatted = formatDueDate(raw);
-    setProjects((prev) =>
+    mutate((prev) =>
       prev.map((p) => {
         if (p.id !== projectId) return p;
         const next = [...p.dueDates];
@@ -222,7 +270,7 @@ const Index = () => {
   };
 
   const toggleMilestone = (projectId: string, index: number) => {
-    setProjects((prev) =>
+    mutate((prev) =>
       prev.map((p) => {
         if (p.id !== projectId) return p;
         // If already checked → uncheck this one and all to its right
