@@ -662,6 +662,7 @@ const STATION_SHAPES: StationShape[] = [
 type StationMarkerProps = {
   shape: StationShape;
   checked: boolean;
+  ratio: number;
   fillClass: string;
   onClick: () => void;
   onDoubleClick: (e: React.MouseEvent) => void;
@@ -669,8 +670,8 @@ type StationMarkerProps = {
 };
 
 const StationMarker = ({
-  shape,
   checked,
+  ratio,
   fillClass,
   onClick,
   onDoubleClick,
@@ -679,26 +680,14 @@ const StationMarker = ({
   const innerSize = 18;
   const ringWidth = 5;
   const ringGap = 3;
-  const totalSize = checked ? innerSize + (ringWidth + ringGap) * 2 : innerSize;
-  const stroke = checked ? 4 : 2;
+  const showRing = ratio > 0;
+  const totalSize = showRing ? innerSize + (ringWidth + ringGap) * 2 : innerSize;
+  const stroke = 2;
   const c = totalSize / 2;
-
-  const renderShape = () => {
-    const fill = "hsl(var(--background))";
-    const strokeColor = checked ? "hsl(var(--foreground))" : "hsl(var(--foreground))";
-    const common = {
-      fill,
-      stroke: strokeColor,
-      strokeWidth: stroke,
-      strokeLinejoin: "round" as const,
-    };
-    const innerR = innerSize / 2 - stroke / 2;
-    switch (shape) {
-      case "circle":
-      default:
-        return <circle cx={c} cy={c} r={innerR} {...common} />;
-    }
-  };
+  const ringR = innerSize / 2 + ringGap + ringWidth / 2;
+  const circumference = 2 * Math.PI * ringR;
+  const dashOn = circumference * Math.min(1, Math.max(0, ratio));
+  const dashOff = circumference - dashOn;
 
   return (
     <button
@@ -726,17 +715,29 @@ const StationMarker = ({
         className="block"
         shapeRendering="geometricPrecision"
       >
-        {checked && (
+        {showRing && (
           <circle
             cx={c}
             cy={c}
-            r={innerSize / 2 + ringGap + ringWidth / 2}
+            r={ringR}
             fill="none"
             stroke={`hsl(var(${fillClass.replace("bg-line-", "--line-")}))`}
             strokeWidth={ringWidth}
+            strokeDasharray={`${dashOn} ${dashOff}`}
+            strokeDashoffset={circumference / 4}
+            strokeLinecap="butt"
+            transform={`rotate(-90 ${c} ${c})`}
+            style={{ transition: "stroke-dasharray 200ms ease" }}
           />
         )}
-        {renderShape()}
+        <circle
+          cx={c}
+          cy={c}
+          r={innerSize / 2 - stroke / 2}
+          fill="hsl(var(--background))"
+          stroke="hsl(var(--foreground))"
+          strokeWidth={stroke}
+        />
       </svg>
     </button>
   );
@@ -785,6 +786,13 @@ const ProgressTrack = ({
           const checked = i < progress;
           const isEditingLabel = editingLabel === i;
           const isOpen = openTaskPanel === i;
+          const namedTasks = (tasks[i] ?? []).filter((t) => t.label.trim() !== "");
+          const taskRatio =
+            namedTasks.length > 0
+              ? namedTasks.filter((t) => t.done).length / namedTasks.length
+              : 0;
+          const ratio = checked ? 1 : taskRatio;
+          const milestoneComplete = ratio >= 1;
           return (
             <li key={i} style={{ display: "contents" }}>
               {/* Row 1: label (aligned to bottom so all markers stay on a single line) */}
@@ -830,46 +838,25 @@ const ProgressTrack = ({
                     className="absolute left-1/2 right-0 top-1/2 -translate-y-1/2 h-4 w-full cursor-copy flex items-center"
                     title="Double-click to insert milestone"
                   >
-                    {(() => {
-                      if (progress >= i + 2) {
-                        return (
-                          <div className={cn("h-[5px] w-full rounded-full", lineColor)} />
-                        );
-                      }
-                      let frac = 0;
-                      const currentTasks = tasks[i] ?? [];
-                      const named = currentTasks.filter((t) => t.label.trim() !== "");
-                      if (named.length > 0) {
-                        frac = named.filter((t) => t.done).length / named.length;
-                      }
-                      return (
-                        <div className="relative h-[5px] w-full rounded-full overflow-hidden">
-                          <div
-                            className="absolute inset-0 opacity-90"
-                            style={{
-                              backgroundImage:
-                                "linear-gradient(to right, hsl(var(--border)) 55%, transparent 55%)",
-                              backgroundSize: "10px 5px",
-                              backgroundRepeat: "repeat-x",
-                            }}
-                          />
-                          {frac > 0 && (
-                            <div
-                              className={cn(
-                                "absolute inset-y-0 left-0 rounded-full",
-                                lineColor,
-                              )}
-                              style={{ width: `${frac * 100}%` }}
-                            />
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {milestoneComplete ? (
+                      <div className={cn("h-[5px] w-full rounded-full", lineColor)} />
+                    ) : (
+                      <div
+                        className="h-[5px] w-full rounded-full opacity-90"
+                        style={{
+                          backgroundImage:
+                            "linear-gradient(to right, hsl(var(--border)) 55%, transparent 55%)",
+                          backgroundSize: "10px 5px",
+                          backgroundRepeat: "repeat-x",
+                        }}
+                      />
+                    )}
                   </div>
                 )}
                 <StationMarker
                   shape="circle"
                   checked={checked}
+                  ratio={ratio}
                   fillClass={lineColor}
                   onClick={() => onToggle(i)}
                   onDoubleClick={(e) => {
@@ -880,7 +867,7 @@ const ProgressTrack = ({
                 />
               </div>
 
-              {/* Row 3: next actions toggle */}
+              {/* Row 3: dropdown chevron toggle */}
               <div
                 className="px-1 flex justify-center"
                 style={{ gridColumn: i + 1, gridRow: 3 }}
@@ -888,14 +875,16 @@ const ProgressTrack = ({
                 <button
                   onClick={() => handleLabelClick(i)}
                   className={cn(
-                    "text-[10px] tracking-wider uppercase font-mono-tabular text-center cursor-pointer select-none min-h-[1.2em] transition-colors",
+                    "text-[9px] leading-none cursor-pointer select-none transition-all p-1 -m-1",
                     isOpen
-                      ? "text-foreground underline underline-offset-2"
+                      ? "text-foreground rotate-180"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                   aria-expanded={isOpen}
+                  aria-label={isOpen ? "Hide tasks" : "Show tasks"}
+                  title={isOpen ? "Hide tasks" : "Show tasks"}
                 >
-                  next actions
+                  ▼
                 </button>
               </div>
             </li>
@@ -903,12 +892,14 @@ const ProgressTrack = ({
         })}
       </ol>
 
-      {/* Task panel — flows below the grid, anchored under the active column */}
+      {/* Task panel — left-aligned to its milestone column */}
       {openTaskPanel !== null && (
-        <div className="mt-3 grid" style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}>
+        <div className="mt-3 relative w-full">
           <div
             className="w-[320px] max-w-[90vw]"
-            style={{ gridColumn: openTaskPanel + 1 }}
+            style={{
+              marginLeft: `calc(${((openTaskPanel + 0.5) / count) * 100}% - 0.5rem)`,
+            }}
           >
             <TaskPanel
               tasks={tasks[openTaskPanel] ?? []}
