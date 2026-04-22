@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Eye, EyeOff, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Category =
@@ -18,6 +18,7 @@ type Task = {
   id: string;
   label: string;
   done: boolean;
+  pinned?: boolean;
 };
 
 type Project = {
@@ -32,6 +33,8 @@ type Project = {
   dueDates: string[];
   /** tasks per milestone index */
   tasks: Record<number, Task[]>;
+  /** if true, project is hidden from main flow + dropped to bottom */
+  hidden?: boolean;
 };
 
 /** Normalize "10.1" / "10/1" / "10 1" → "10.01". Returns "" if invalid. */
@@ -83,7 +86,14 @@ const Index = () => {
           Array.isArray(p.dueDates) && p.dueDates.length === milestones.length
             ? p.dueDates
             : milestones.map(() => "");
-        return { ...p, progress: p.progress ?? 0, milestones, dueDates, tasks: p.tasks ?? {} };
+        return {
+          ...p,
+          progress: p.progress ?? 0,
+          milestones,
+          dueDates,
+          tasks: p.tasks ?? {},
+          hidden: !!p.hidden,
+        };
       });
     } catch {
       return [];
@@ -269,6 +279,13 @@ const Index = () => {
     );
   };
 
+  const toggleHidden = (projectId: string) => {
+    mutate((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, hidden: !p.hidden } : p)),
+    );
+    if (expandedId === projectId) setExpandedId(null);
+  };
+
   const toggleMilestone = (projectId: string, index: number) => {
     mutate((prev) =>
       prev.map((p) => {
@@ -297,19 +314,23 @@ const Index = () => {
         )}
 
         <ul className="flex flex-col">
-          {projects.map((p) => {
+          {[...projects]
+            .sort((a, b) => Number(!!a.hidden) - Number(!!b.hidden))
+            .map((p) => {
             const cat = CATEGORIES.find((c) => c.key === p.category)!;
             const isExpanded = expandedId === p.id;
             const isEditing = editingProjectId === p.id;
+            const isHidden = !!p.hidden;
             return (
               <li key={p.id}>
                 <div
                   className={cn(
                     "group relative flex items-center gap-4 py-4 px-2 -mx-2 rounded-sm cursor-pointer",
                     "hover:bg-muted/40 transition-colors",
+                    isHidden && "opacity-40",
                   )}
                   onClick={() => {
-                    if (isEditing) return;
+                    if (isEditing || isHidden) return;
                     setExpandedId(isExpanded ? null : p.id);
                   }}
                   onDoubleClick={() => setEditingProjectId(p.id)}
@@ -317,7 +338,10 @@ const Index = () => {
                   aria-expanded={isExpanded}
                 >
                   <span
-                    className={cn("h-2.5 w-2.5 rounded-full shrink-0", cat.dot)}
+                    className={cn(
+                      "h-2.5 w-2.5 rounded-full shrink-0",
+                      isHidden ? "bg-muted-foreground" : cat.dot,
+                    )}
                     aria-label={cat.label}
                   />
                   {isEditing ? (
@@ -331,10 +355,33 @@ const Index = () => {
                       className="flex-1 text-foreground font-normal"
                     />
                   ) : (
-                    <span className="flex-1 text-left text-foreground font-normal truncate">
+                    <span
+                      className={cn(
+                        "flex-1 text-left font-normal truncate",
+                        isHidden ? "text-muted-foreground" : "text-foreground",
+                      )}
+                    >
                       {p.title}
                     </span>
                   )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleHidden(p.id);
+                    }}
+                    className={cn(
+                      "transition-opacity text-muted-foreground hover:text-foreground",
+                      isHidden ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                    )}
+                    aria-label={isHidden ? `Unhide ${p.title}` : `Hide ${p.title}`}
+                    title={isHidden ? "Unhide project" : "Hide project"}
+                  >
+                    {isHidden ? (
+                      <EyeOff className="h-4 w-4" strokeWidth={1.5} />
+                    ) : (
+                      <Eye className="h-4 w-4" strokeWidth={1.5} />
+                    )}
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -354,6 +401,7 @@ const Index = () => {
                     progress={p.progress}
                     lineColor={cat.line}
                     tasks={p.tasks}
+                    lineCssVar={cat.cssVar}
                     onToggle={(i) => toggleMilestone(p.id, i)}
                     onRenameMilestone={(i, label) => renameMilestone(p.id, i, label)}
                     onSetDueDate={(i, raw) => setDueDate(p.id, i, raw)}
@@ -426,26 +474,46 @@ type AllTasksListProps = {
 };
 
 const AllTasksList = ({ projects, onUpdateTasks }: AllTasksListProps) => {
-  const rows = projects.flatMap((p) => {
-    const cat = CATEGORIES.find((c) => c.key === p.category)!;
-    return Object.entries(p.tasks ?? {}).flatMap(([msIdxStr, tasks]) => {
-      const msIdx = Number(msIdxStr);
-      const milestoneLabel = p.milestones[msIdx] ?? "";
-      return (tasks ?? [])
-        .filter((t) => t.label.trim() !== "")
-        .map((t) => ({
-          projectId: p.id,
-          projectTitle: p.title,
-          dot: cat.dot,
-          milestoneIndex: msIdx,
-          milestoneLabel,
-          allTasksAtMilestone: tasks,
-          task: t,
-        }));
+  const rows = projects
+    .filter((p) => !p.hidden)
+    .flatMap((p) => {
+      const cat = CATEGORIES.find((c) => c.key === p.category)!;
+      return Object.entries(p.tasks ?? {}).flatMap(([msIdxStr, tasks]) => {
+        const msIdx = Number(msIdxStr);
+        const milestoneLabel = p.milestones[msIdx] ?? "";
+        const milestoneManuallyChecked = msIdx < p.progress;
+        const named = (tasks ?? []).filter((t) => t.label.trim() !== "");
+        const ratio =
+          named.length > 0 ? named.filter((t) => t.done).length / named.length : 0;
+        const overridden = milestoneManuallyChecked && ratio < 1;
+        return (tasks ?? [])
+          .filter((t) => t.label.trim() !== "")
+          .map((t) => ({
+            projectId: p.id,
+            projectTitle: p.title,
+            dot: cat.dot,
+            cssVar: cat.cssVar,
+            milestoneIndex: msIdx,
+            milestoneLabel,
+            allTasksAtMilestone: tasks,
+            task: t,
+            flagged: overridden && !t.done,
+          }));
+      });
     });
-  });
 
   if (rows.length === 0) return null;
+
+  // Pinned tasks bubble to the top, otherwise preserve original order
+  const sortedRows = rows
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => {
+      const pa = a.r.task.pinned ? 0 : 1;
+      const pb = b.r.task.pinned ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return a.i - b.i;
+    })
+    .map((x) => x.r);
 
   const toggle = (
     projectId: string,
@@ -460,6 +528,19 @@ const AllTasksList = ({ projects, onUpdateTasks }: AllTasksListProps) => {
     );
   };
 
+  const togglePin = (
+    projectId: string,
+    milestoneIndex: number,
+    allTasks: Task[],
+    taskId: string,
+  ) => {
+    onUpdateTasks(
+      projectId,
+      milestoneIndex,
+      allTasks.map((t) => (t.id === taskId ? { ...t, pinned: !t.pinned } : t)),
+    );
+  };
+
   return (
     <section
       aria-label="All tasks"
@@ -469,45 +550,73 @@ const AllTasksList = ({ projects, onUpdateTasks }: AllTasksListProps) => {
         All Tasks
       </h2>
       <ul className="flex flex-col gap-1">
-        {rows.map((r) => (
-          <li
-            key={`${r.projectId}-${r.milestoneIndex}-${r.task.id}`}
-            className="group flex items-center gap-3 py-1"
-          >
-            <button
-              onClick={() =>
-                toggle(r.projectId, r.milestoneIndex, r.allTasksAtMilestone, r.task.id)
-              }
-              className={cn(
-                "h-3.5 w-3.5 rounded-sm border shrink-0 transition-colors",
-                r.task.done
-                  ? "bg-foreground border-foreground"
-                  : "bg-background border-border hover:border-foreground",
-              )}
-              aria-label={r.task.done ? "Mark incomplete" : "Mark complete"}
-            />
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full shrink-0",
-                r.dot,
-              )}
-            />
-            <span
-              className={cn(
-                "flex-1 text-[10px] tracking-wider uppercase font-mono-tabular leading-tight truncate",
-                r.task.done ? "line-through text-muted-foreground" : "text-foreground",
-              )}
+        {sortedRows.map((r) => {
+          const isPinned = !!r.task.pinned;
+          return (
+            <li
+              key={`${r.projectId}-${r.milestoneIndex}-${r.task.id}`}
+              className="group flex items-center gap-3 py-1"
             >
-              {r.task.label}
-            </span>
-            <span className="text-[10px] tracking-wider uppercase font-mono-tabular text-muted-foreground truncate max-w-[40%] text-right">
-              {r.projectTitle}
-              {r.milestoneLabel && (
-                <span className="opacity-60"> · {r.milestoneLabel}</span>
+              <button
+                onClick={() =>
+                  togglePin(r.projectId, r.milestoneIndex, r.allTasksAtMilestone, r.task.id)
+                }
+                className={cn(
+                  "shrink-0 transition-opacity",
+                  isPinned
+                    ? "opacity-100 text-foreground"
+                    : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground",
+                )}
+                aria-label={isPinned ? "Unpin task" : "Pin task"}
+                title={isPinned ? "Unpin task" : "Pin task"}
+              >
+                <Pin
+                  className="h-3 w-3"
+                  strokeWidth={1.5}
+                  style={isPinned ? { fill: "currentColor" } : undefined}
+                />
+              </button>
+              <button
+                onClick={() =>
+                  toggle(r.projectId, r.milestoneIndex, r.allTasksAtMilestone, r.task.id)
+                }
+                className={cn(
+                  "h-3.5 w-3.5 rounded-sm border shrink-0 transition-colors",
+                  r.task.done
+                    ? "bg-foreground border-foreground"
+                    : "bg-background border-border hover:border-foreground",
+                )}
+                aria-label={r.task.done ? "Mark incomplete" : "Mark complete"}
+              />
+              <span className={cn("h-2 w-2 rounded-full shrink-0", r.dot)} />
+              {r.flagged && (
+                <span
+                  className="text-sm leading-none font-bold shrink-0 -ml-1"
+                  style={{ color: `hsl(var(${r.cssVar}))` }}
+                  aria-label="Incomplete under completed milestone"
+                  title="Incomplete under completed milestone"
+                >
+                  *
+                </span>
               )}
-            </span>
-          </li>
-        ))}
+              <span
+                className={cn(
+                  "flex-1 tracking-wider uppercase font-mono-tabular leading-tight truncate transition-all",
+                  isPinned ? "text-xs" : "text-[10px]",
+                  r.task.done ? "line-through text-muted-foreground" : "text-foreground",
+                )}
+              >
+                {r.task.label}
+              </span>
+              <span className="text-[10px] tracking-wider uppercase font-mono-tabular text-muted-foreground truncate max-w-[40%] text-right">
+                {r.projectTitle}
+                {r.milestoneLabel && (
+                  <span className="opacity-60"> · {r.milestoneLabel}</span>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -552,6 +661,7 @@ type ProgressTrackProps = {
   dueDates: string[];
   progress: number;
   lineColor: string;
+  lineCssVar: string;
   tasks: Record<number, Task[]>;
   onToggle: (index: number) => void;
   onRenameMilestone: (index: number, label: string) => void;
@@ -564,9 +674,12 @@ type ProgressTrackProps = {
 type TaskPanelProps = {
   tasks: Task[];
   onChange: (tasks: Task[]) => void;
+  /** When set, incomplete tasks are flagged with a colored asterisk (used when the
+   * milestone has been manually checked but tasks remain incomplete). */
+  flagColorVar?: string;
 };
 
-const TaskPanel = ({ tasks, onChange }: TaskPanelProps) => {
+const TaskPanel = ({ tasks, onChange, flagColorVar }: TaskPanelProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const toggleTask = (id: string) =>
@@ -604,6 +717,16 @@ const TaskPanel = ({ tasks, onChange }: TaskPanelProps) => {
             )}
             aria-label={task.done ? "Mark incomplete" : "Mark complete"}
           />
+          {flagColorVar && !task.done && (
+            <span
+              className="text-sm leading-none font-bold shrink-0 -ml-1"
+              style={{ color: `hsl(var(${flagColorVar}))` }}
+              aria-label="Incomplete under completed milestone"
+              title="Milestone marked complete with incomplete task"
+            >
+              *
+            </span>
+          )}
           {editingId === task.id ? (
             <InlineEdit
               initial={task.label}
@@ -748,6 +871,7 @@ const ProgressTrack = ({
   dueDates,
   progress,
   lineColor,
+  lineCssVar,
   onToggle,
   onRenameMilestone,
   onSetDueDate,
@@ -759,9 +883,38 @@ const ProgressTrack = ({
   const count = milestones.length;
   const [editingLabel, setEditingLabel] = useState<number | null>(null);
   const [editingDate, setEditingDate] = useState<number | null>(null);
-  const [openTaskPanel, setOpenTaskPanel] = useState<number | null>(
-    progress > 0 ? progress - 1 : 0,
-  );
+
+  // Auto-open to first unfinished milestone (first one not manually checked).
+  // If all are checked, open the last one.
+  const initialOpenIndex = (() => {
+    for (let i = 0; i < count; i++) {
+      if (i >= progress) return i;
+    }
+    return Math.max(0, count - 1);
+  })();
+  const [openTaskPanel, setOpenTaskPanel] = useState<number | null>(initialOpenIndex);
+
+  // Click-vs-doubleclick disambiguation on the marker so deleting (dblclick)
+  // doesn't also fire toggle (single click).
+  const clickTimerRef = useRef<number | null>(null);
+  const cancelPendingMarkerClick = () => {
+    if (clickTimerRef.current !== null) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+  };
+  const handleMarkerClick = (i: number) => {
+    cancelPendingMarkerClick();
+    clickTimerRef.current = window.setTimeout(() => {
+      onToggle(i);
+      clickTimerRef.current = null;
+    }, 220);
+  };
+  const handleMarkerDoubleClick = (i: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    cancelPendingMarkerClick();
+    onDeleteMilestone(i);
+  };
 
   const handleLabelClick = (i: number) => {
     if (editingLabel === i) return;
@@ -771,6 +924,19 @@ const ProgressTrack = ({
     }
     setOpenTaskPanel(i);
   };
+
+  // If a milestone is overridden (manually checked but with incomplete tasks),
+  // jump the panel open to it so the user sees the warning.
+  useEffect(() => {
+    for (let i = 0; i < count; i++) {
+      const named = (tasks[i] ?? []).filter((t) => t.label.trim() !== "");
+      const ratio = named.length > 0 ? named.filter((t) => t.done).length / named.length : 0;
+      if (i < progress && ratio < 1) {
+        setOpenTaskPanel(i);
+        return;
+      }
+    }
+  }, [progress, tasks, count]);
 
   return (
     <div className="px-2 pb-8 pt-4 relative">
@@ -813,11 +979,17 @@ const ProgressTrack = ({
                   />
                 ) : (
                   <span
-                    onDoubleClick={() => setEditingLabel(i)}
+                    onClick={() => handleLabelClick(i)}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setEditingLabel(i);
+                    }}
                     className={cn(
-                      "text-[10px] tracking-wider uppercase text-center font-mono-tabular leading-tight cursor-text select-none",
+                      "text-[10px] tracking-wider uppercase text-center font-mono-tabular leading-tight cursor-pointer select-none transition-colors",
                       checked ? "text-foreground" : "text-muted-foreground",
+                      isOpen && "underline underline-offset-2",
                     )}
+                    title="Click to toggle tasks, double-click to rename"
                   >
                     {label}
                   </span>
@@ -853,18 +1025,27 @@ const ProgressTrack = ({
                     )}
                   </div>
                 )}
-                <StationMarker
-                  shape="circle"
-                  checked={checked}
-                  ratio={ratio}
-                  fillClass={lineColor}
-                  onClick={() => onToggle(i)}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteMilestone(i);
-                  }}
-                  ariaLabel={`${label}${checked ? " (completed)" : ""}`}
-                />
+                <div className="relative inline-flex items-center justify-center">
+                  <StationMarker
+                    shape="circle"
+                    checked={checked}
+                    ratio={ratio}
+                    fillClass={lineColor}
+                    onClick={() => handleMarkerClick(i)}
+                    onDoubleClick={(e) => handleMarkerDoubleClick(i, e)}
+                    ariaLabel={`${label}${checked ? " (completed)" : ""}`}
+                  />
+                  {checked && taskRatio < 1 && (
+                    <span
+                      className="absolute -top-1 -right-1 z-20 text-sm leading-none font-bold pointer-events-none"
+                      style={{ color: `hsl(var(${lineCssVar}))` }}
+                      aria-label="Marked complete with incomplete tasks"
+                      title="Marked complete with incomplete tasks"
+                    >
+                      *
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Row 3: dropdown chevron toggle */}
@@ -893,21 +1074,27 @@ const ProgressTrack = ({
       </ol>
 
       {/* Task panel — left-aligned to its milestone column */}
-      {openTaskPanel !== null && (
-        <div className="mt-3 relative w-full">
-          <div
-            className="w-[320px] max-w-[90vw]"
-            style={{
-              marginLeft: `calc(${((openTaskPanel + 0.5) / count) * 100}% - 0.5rem)`,
-            }}
-          >
-            <TaskPanel
-              tasks={tasks[openTaskPanel] ?? []}
-              onChange={(updated) => onUpdateTasks(openTaskPanel, updated)}
-            />
+      {openTaskPanel !== null && (() => {
+        const named = (tasks[openTaskPanel] ?? []).filter((t) => t.label.trim() !== "");
+        const r = named.length > 0 ? named.filter((t) => t.done).length / named.length : 0;
+        const overridden = openTaskPanel < progress && r < 1;
+        return (
+          <div className="mt-3 relative w-full">
+            <div
+              className="w-[320px] max-w-[90vw]"
+              style={{
+                marginLeft: `calc(${((openTaskPanel + 0.5) / count) * 100}% - 0.5rem)`,
+              }}
+            >
+              <TaskPanel
+                tasks={tasks[openTaskPanel] ?? []}
+                onChange={(updated) => onUpdateTasks(openTaskPanel, updated)}
+                flagColorVar={overridden ? lineCssVar : undefined}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
