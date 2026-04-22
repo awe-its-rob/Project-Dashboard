@@ -504,13 +504,19 @@ const AllTasksList = ({ projects, onUpdateTasks }: AllTasksListProps) => {
 
   if (rows.length === 0) return null;
 
-  // Pinned tasks bubble to the top, otherwise preserve original order
+  // Order: unchecked-pinned > unchecked-unpinned > checked (greyed, sunk).
+  // Within each tier, preserve original order.
+  const tier = (r: (typeof rows)[number]) => {
+    if (r.task.done) return 2;
+    if (r.task.pinned) return 0;
+    return 1;
+  };
   const sortedRows = rows
     .map((r, i) => ({ r, i }))
     .sort((a, b) => {
-      const pa = a.r.task.pinned ? 0 : 1;
-      const pb = b.r.task.pinned ? 0 : 1;
-      if (pa !== pb) return pa - pb;
+      const ta = tier(a.r);
+      const tb = tier(b.r);
+      if (ta !== tb) return ta - tb;
       return a.i - b.i;
     })
     .map((x) => x.r);
@@ -884,11 +890,16 @@ const ProgressTrack = ({
   const [editingLabel, setEditingLabel] = useState<number | null>(null);
   const [editingDate, setEditingDate] = useState<number | null>(null);
 
-  // Auto-open to first unfinished milestone (first one not manually checked).
-  // If all are checked, open the last one.
+  // Auto-open to the milestone in progress, or the next one to start.
+  // A milestone is "effectively complete" when it's manually checked AND
+  // (has no tasks OR all its tasks are done). We open the first one that
+  // isn't effectively complete; if all are, fall back to the last.
   const initialOpenIndex = (() => {
     for (let i = 0; i < count; i++) {
-      if (i >= progress) return i;
+      const named = (tasks[i] ?? []).filter((t) => t.label.trim() !== "");
+      const r = named.length > 0 ? named.filter((t) => t.done).length / named.length : 1;
+      const effectivelyComplete = i < progress && r >= 1;
+      if (!effectivelyComplete) return i;
     }
     return Math.max(0, count - 1);
   })();
@@ -908,7 +919,7 @@ const ProgressTrack = ({
     clickTimerRef.current = window.setTimeout(() => {
       onToggle(i);
       clickTimerRef.current = null;
-    }, 220);
+    }, 140);
   };
   const handleMarkerDoubleClick = (i: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1035,7 +1046,7 @@ const ProgressTrack = ({
                     onDoubleClick={(e) => handleMarkerDoubleClick(i, e)}
                     ariaLabel={`${label}${checked ? " (completed)" : ""}`}
                   />
-                  {checked && taskRatio < 1 && (
+                  {checked && namedTasks.length > 0 && taskRatio < 1 && (
                     <span
                       className="absolute -top-1 -right-1 z-20 text-sm leading-none font-bold pointer-events-none"
                       style={{ color: `hsl(var(${lineCssVar}))` }}
@@ -1077,7 +1088,7 @@ const ProgressTrack = ({
       {openTaskPanel !== null && (() => {
         const named = (tasks[openTaskPanel] ?? []).filter((t) => t.label.trim() !== "");
         const r = named.length > 0 ? named.filter((t) => t.done).length / named.length : 0;
-        const overridden = openTaskPanel < progress && r < 1;
+        const overridden = openTaskPanel < progress && named.length > 0 && r < 1;
         return (
           <div className="mt-3 relative w-full">
             <div
