@@ -69,6 +69,8 @@ const nextCategory = (existing: { category: Category }[]): Category => {
 };
 
 const STORAGE_KEY = "studio.projects.v1";
+const PROJECT_DND_MIME = "application/x-studio-project";
+const TASK_DND_MIME = "application/x-studio-task";
 
 const Index = () => {
   const [projects, _setProjectsRaw] = useState<Project[]>(() => {
@@ -104,6 +106,7 @@ const Index = () => {
   const [draftCategory, setDraftCategory] = useState<Category>("video");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -279,6 +282,45 @@ const Index = () => {
     );
   };
 
+  const moveTask = (
+    projectId: string,
+    fromIndex: number,
+    toIndex: number,
+    taskId: string,
+  ) => {
+    if (fromIndex === toIndex) return;
+    mutate((prev) =>
+      prev.map((p) => {
+        if (p.id !== projectId) return p;
+        const fromTasks = (p.tasks?.[fromIndex] ?? []).slice();
+        const idx = fromTasks.findIndex((t) => t.id === taskId);
+        if (idx === -1) return p;
+        const [moved] = fromTasks.splice(idx, 1);
+        const toTasks = (p.tasks?.[toIndex] ?? []).slice();
+        toTasks.push(moved);
+        return {
+          ...p,
+          tasks: { ...p.tasks, [fromIndex]: fromTasks, [toIndex]: toTasks },
+        };
+      }),
+    );
+  };
+
+  const reorderProject = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    mutate((prev) => {
+      const arr = [...prev];
+      const fromIdx = arr.findIndex((p) => p.id === draggedId);
+      const targetIdx = arr.findIndex((p) => p.id === targetId);
+      if (fromIdx === -1 || targetIdx === -1) return prev;
+      if (arr[fromIdx].hidden || arr[targetIdx].hidden) return prev;
+      const [moved] = arr.splice(fromIdx, 1);
+      const newTargetIdx = arr.findIndex((p) => p.id === targetId);
+      arr.splice(newTargetIdx, 0, moved);
+      return arr;
+    });
+  };
+
   const toggleHidden = (projectId: string) => {
     mutate((prev) =>
       prev.map((p) => (p.id === projectId ? { ...p, hidden: !p.hidden } : p)),
@@ -321,13 +363,43 @@ const Index = () => {
             const isExpanded = expandedId === p.id;
             const isEditing = editingProjectId === p.id;
             const isHidden = !!p.hidden;
+            const isDragOver = dragOverProjectId === p.id && !isHidden;
             return (
               <li key={p.id}>
                 <div
+                  draggable={!isHidden && !isEditing}
+                  onDragStart={(e) => {
+                    if (isHidden || isEditing) {
+                      e.preventDefault();
+                      return;
+                    }
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData(PROJECT_DND_MIME, p.id);
+                  }}
+                  onDragOver={(e) => {
+                    if (isHidden) return;
+                    if (e.dataTransfer.types.includes(PROJECT_DND_MIME)) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverProjectId !== p.id) setDragOverProjectId(p.id);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverProjectId === p.id) setDragOverProjectId(null);
+                  }}
+                  onDrop={(e) => {
+                    if (isHidden) return;
+                    const draggedId = e.dataTransfer.getData(PROJECT_DND_MIME);
+                    setDragOverProjectId(null);
+                    if (!draggedId) return;
+                    e.preventDefault();
+                    reorderProject(draggedId, p.id);
+                  }}
                   className={cn(
                     "group relative flex items-center gap-4 py-4 px-2 -mx-2 rounded-sm cursor-pointer",
                     "hover:bg-muted/40 transition-colors",
-                    isHidden && "opacity-40",
+                    isHidden && "opacity-40 cursor-default",
+                    isDragOver && "shadow-[inset_0_2px_0_0_hsl(var(--foreground))]",
                   )}
                   onClick={() => {
                     if (isEditing || isHidden) return;
@@ -408,6 +480,7 @@ const Index = () => {
                     onDeleteMilestone={(i) => deleteMilestone(p.id, i)}
                     onInsertMilestone={(i) => insertMilestone(p.id, i)}
                     onUpdateTasks={(i, tasks) => updateTasks(p.id, i, tasks)}
+                    onMoveTask={(from, to, taskId) => moveTask(p.id, from, to, taskId)}
                   />
                 )}
               </li>
@@ -587,10 +660,10 @@ const AllTasksList = ({ projects, onUpdateTasks }: AllTasksListProps) => {
                   toggle(r.projectId, r.milestoneIndex, r.allTasksAtMilestone, r.task.id)
                 }
                 className={cn(
-                  "h-3.5 w-3.5 rounded-sm border shrink-0 transition-colors",
+                  "shrink-0 transition-all",
                   r.task.done
-                    ? "bg-foreground border-foreground"
-                    : "bg-background border-border hover:border-foreground",
+                    ? "h-2.5 w-2.5 rounded-full bg-muted-foreground/60"
+                    : "h-3.5 w-3.5 rounded-sm border bg-background border-border hover:border-foreground",
                 )}
                 aria-label={r.task.done ? "Mark incomplete" : "Mark complete"}
               />
@@ -675,17 +748,19 @@ type ProgressTrackProps = {
   onDeleteMilestone: (index: number) => void;
   onInsertMilestone: (afterIndex: number) => void;
   onUpdateTasks: (index: number, tasks: Task[]) => void;
+  onMoveTask: (fromIndex: number, toIndex: number, taskId: string) => void;
 };
 
 type TaskPanelProps = {
   tasks: Task[];
+  milestoneIndex: number;
   onChange: (tasks: Task[]) => void;
   /** When set, incomplete tasks are flagged with a colored asterisk (used when the
    * milestone has been manually checked but tasks remain incomplete). */
   flagColorVar?: string;
 };
 
-const TaskPanel = ({ tasks, onChange, flagColorVar }: TaskPanelProps) => {
+const TaskPanel = ({ tasks, milestoneIndex, onChange, flagColorVar }: TaskPanelProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const toggleTask = (id: string) =>
@@ -712,14 +787,30 @@ const TaskPanel = ({ tasks, onChange, flagColorVar }: TaskPanelProps) => {
   return (
     <div className="mt-2 mb-4 ml-1 flex flex-col gap-1">
       {tasks.map((task) => (
-        <div key={task.id} className="group flex items-center gap-2 py-0.5">
+        <div
+          key={task.id}
+          className="group flex items-center gap-2 py-0.5"
+          draggable={!!task.label.trim()}
+          onDragStart={(e) => {
+            if (!task.label.trim()) {
+              e.preventDefault();
+              return;
+            }
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData(
+              TASK_DND_MIME,
+              JSON.stringify({ fromIndex: milestoneIndex, taskId: task.id }),
+            );
+          }}
+          style={task.label.trim() ? { cursor: "grab" } : undefined}
+        >
           <button
             onClick={() => toggleTask(task.id)}
             className={cn(
-              "h-3.5 w-3.5 rounded-sm border shrink-0 transition-colors",
+              "shrink-0 transition-all",
               task.done
-                ? "bg-foreground border-foreground"
-                : "bg-background border-border hover:border-foreground",
+                ? "h-2.5 w-2.5 rounded-full bg-muted-foreground/60"
+                : "h-3.5 w-3.5 rounded-sm border bg-background border-border hover:border-foreground",
             )}
             aria-label={task.done ? "Mark incomplete" : "Mark complete"}
           />
@@ -885,9 +976,11 @@ const ProgressTrack = ({
   onInsertMilestone,
   tasks,
   onUpdateTasks,
+  onMoveTask,
 }: ProgressTrackProps) => {
   const count = milestones.length;
   const [editingLabel, setEditingLabel] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [editingDate, setEditingDate] = useState<number | null>(null);
 
   // Auto-open to the first milestone that still has incomplete tasks.
@@ -1008,8 +1101,36 @@ const ProgressTrack = ({
 
               {/* Row 2: station marker + connecting line */}
               <div
-                className="relative w-full flex items-center justify-center h-6 px-1"
+                className={cn(
+                  "relative w-full flex items-center justify-center h-6 px-1 rounded-md transition-colors",
+                  dragOverIndex === i && "bg-muted/60 ring-1 ring-foreground/20",
+                )}
                 style={{ gridColumn: i + 1, gridRow: 2 }}
+                onDragOver={(e) => {
+                  if (e.dataTransfer.types.includes(TASK_DND_MIME)) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (dragOverIndex !== i) setDragOverIndex(i);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (dragOverIndex === i) setDragOverIndex(null);
+                }}
+                onDrop={(e) => {
+                  const raw = e.dataTransfer.getData(TASK_DND_MIME);
+                  setDragOverIndex(null);
+                  if (!raw) return;
+                  e.preventDefault();
+                  try {
+                    const { fromIndex, taskId } = JSON.parse(raw) as {
+                      fromIndex: number;
+                      taskId: string;
+                    };
+                    onMoveTask(fromIndex, i, taskId);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
               >
                 {i < count - 1 && (
                   <div
@@ -1098,6 +1219,7 @@ const ProgressTrack = ({
             >
               <TaskPanel
                 tasks={tasks[openTaskPanel] ?? []}
+                milestoneIndex={openTaskPanel}
                 onChange={(updated) => onUpdateTasks(openTaskPanel, updated)}
                 flagColorVar={overridden ? lineCssVar : undefined}
               />
