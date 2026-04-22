@@ -890,16 +890,15 @@ const ProgressTrack = ({
   const [editingLabel, setEditingLabel] = useState<number | null>(null);
   const [editingDate, setEditingDate] = useState<number | null>(null);
 
-  // Auto-open to the milestone in progress, or the next one to start.
-  // A milestone is "effectively complete" when it's manually checked AND
-  // (has no tasks OR all its tasks are done). We open the first one that
-  // isn't effectively complete; if all are, fall back to the last.
+  // Auto-open to the first milestone that still has incomplete tasks.
+  // If a milestone's tasks are all complete (or it has none at all), skip
+  // to the next milestone to the right. If every milestone is fully done,
+  // fall back to the last one.
   const initialOpenIndex = (() => {
     for (let i = 0; i < count; i++) {
       const named = (tasks[i] ?? []).filter((t) => t.label.trim() !== "");
-      const r = named.length > 0 ? named.filter((t) => t.done).length / named.length : 1;
-      const effectivelyComplete = i < progress && r >= 1;
-      if (!effectivelyComplete) return i;
+      const hasIncomplete = named.some((t) => !t.done);
+      if (hasIncomplete) return i;
     }
     return Math.max(0, count - 1);
   })();
