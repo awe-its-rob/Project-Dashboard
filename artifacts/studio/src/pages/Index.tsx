@@ -72,6 +72,22 @@ const STORAGE_KEY = "studio.projects.v1";
 const PROJECT_DND_MIME = "application/x-studio-project";
 const TASK_DND_MIME = "application/x-studio-task";
 
+const getAutoOpenMilestoneIndex = (
+  progress: number,
+  tasks: Record<number, Task[]>,
+  count: number,
+): number | null => {
+  if (count <= 0) return null;
+
+  for (let i = 0; i < count; i++) {
+    const namedTasks = (tasks[i] ?? []).filter((task) => task.label.trim() !== "");
+    if (namedTasks.some((task) => !task.done)) return i;
+  }
+
+  if (progress < count) return progress;
+  return count - 1;
+};
+
 const Index = () => {
   const [projects, _setProjectsRaw] = useState<Project[]>(() => {
     if (typeof window === "undefined") return [];
@@ -982,20 +998,9 @@ const ProgressTrack = ({
   const [editingLabel, setEditingLabel] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [editingDate, setEditingDate] = useState<number | null>(null);
-
-  // Auto-open to the first milestone that still has incomplete tasks.
-  // If a milestone's tasks are all complete (or it has none at all), skip
-  // to the next milestone to the right. If every milestone is fully done,
-  // fall back to the last one.
-  const initialOpenIndex = (() => {
-    for (let i = 0; i < count; i++) {
-      const named = (tasks[i] ?? []).filter((t) => t.label.trim() !== "");
-      const hasIncomplete = named.some((t) => !t.done);
-      if (hasIncomplete) return i;
-    }
-    return Math.max(0, count - 1);
-  })();
-  const [openTaskPanel, setOpenTaskPanel] = useState<number | null>(initialOpenIndex);
+  const [openTaskPanel, setOpenTaskPanel] = useState<number | null>(() =>
+    getAutoOpenMilestoneIndex(progress, tasks, count),
+  );
 
   // Click-vs-doubleclick disambiguation on the marker so deleting (dblclick)
   // doesn't also fire toggle (single click).
@@ -1027,19 +1032,6 @@ const ProgressTrack = ({
     }
     setOpenTaskPanel(i);
   };
-
-  // If a milestone is overridden (manually checked but with incomplete tasks),
-  // jump the panel open to it so the user sees the warning.
-  useEffect(() => {
-    for (let i = 0; i < count; i++) {
-      const named = (tasks[i] ?? []).filter((t) => t.label.trim() !== "");
-      const ratio = named.length > 0 ? named.filter((t) => t.done).length / named.length : 0;
-      if (i < progress && ratio < 1) {
-        setOpenTaskPanel(i);
-        return;
-      }
-    }
-  }, [progress, tasks, count]);
 
   return (
     <div className="px-2 pb-8 pt-4 relative">
